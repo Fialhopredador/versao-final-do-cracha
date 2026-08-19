@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Factory Vision — Digital Twin 3D + Crachá IoT</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #050912;
+      font-family: Inter, Arial, sans-serif;
+      color: #eef4ff;
+    }
+
+    body { display: grid; place-items: center; }
+
+    #viewport {
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      max-height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #122238, #08111d 55%);
+      box-shadow: 0 0 50px rgba(0,0,0,.45);
+    }
+
+    #scene { position: absolute; inset: 0; }
+
+    .topbar {
+      position: absolute;
+      left: 1.2%;
+      right: 1.2%;
+      top: 1.6%;
+      height: 7.2%;
+      min-height: 58px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(10,15,24,.88);
+      backdrop-filter: blur(14px);
+      border-radius: 14px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      box-shadow: 0 12px 36px rgba(0,0,0,.28);
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 38px; height: 38px; border-radius: 11px;
+      background: linear-gradient(135deg,#2dd4bf,#3b82f6);
+      display:grid; place-items:center; font-weight:900; color:#06111c;
+    }
+    .brand h1 { margin:0; font-size:16px; letter-spacing:.2px; }
+    .brand span { display:block; margin-top:3px; color:#8fa2ba; font-size:11px; }
+
+    .nav { display:flex; gap:7px; }
+    .nav button, .control-btn, .scenario-btn {
+      border:1px solid rgba(255,255,255,.10);
+      background:#121a28;
+      color:#dce8f8;
+      padding:8px 11px;
+      border-radius:9px;
+      cursor:pointer;
+      transition:.2s;
+      font-size:12px;
+    }
+    .nav button:hover, .control-btn:hover, .scenario-btn:hover { background:#1a2638; transform:translateY(-1px); }
+    .nav .active { background:#1d4ed8; border-color:#3b82f6; }
+
+    .metrics {
+      position:absolute;
+      top:10.2%;
+      left:1.2%;
+      right:20.2%;
+      z-index:15;
+      display:grid;
+      grid-template-columns:repeat(6, 1fr);
+      gap:8px;
+      pointer-events:none;
+    }
+
+    .metric {
+      background:linear-gradient(180deg, rgba(14,22,34,.92), rgba(10,15,24,.84));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:12px;
+      padding:10px 12px;
+      box-shadow:0 10px 30px rgba(0,0,0,.20);
+      backdrop-filter: blur(10px);
+    }
+    .metric small { color:#8fa2ba; font-size:10px; }
+    .metric strong { display:block; margin-top:4px; font-size:15px; }
+    .metric em { font-style:normal; font-size:10px; color:#72e6c5; }
+    .metric.alert strong { color:#fecaca; }
+    .metric.alert em { color:#fdba74; }
+
+    .sidebar {
+      position:absolute;
+      right:1.2%;
+      top:10.2%;
+      bottom:8.8%;
+      width:18.5%;
+      min-width:265px;
+      background:rgba(10,15,24,.90);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      z-index:18;
+      padding:14px;
+      overflow:auto;
+      backdrop-filter:blur(14px);
+      transform: translateX(calc(100% + 24px));
+      opacity: 0;
+      pointer-events: none;
+      transition: transform .28s ease, opacity .28s ease;
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sidebar-close {
+      position:absolute;
+      top:10px;
+      right:10px;
+      width:30px;
+      height:30px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,.10);
+      background:#121a28;
+      color:#dce8f8;
+      cursor:pointer;
+      font-size:16px;
+      z-index:2;
+    }
+
+    .sidebar h2 { margin:0 0 10px; font-size:15px; }
+    .sidebar h3 { font-size:12px; margin:16px 0 8px; color:#b7c7da; }
+    .hint { color:#8294aa; font-size:11px; line-height:1.45; }
+
+    .machine-card, .zone-card {
+      border:1px solid rgba(255,255,255,.08);
+      background:#101827;
+      border-radius:11px;
+      padding:10px;
+      margin-bottom:8px;
+      cursor:pointer;
+    }
+    .machine-card:hover, .zone-card:hover { background:#152033; }
+    .machine-row { display:flex; justify-content:space-between; gap:8px; font-size:11px; margin-top:5px; color:#9fb0c4; }
+    .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; }
+    .green { background:#22c55e; box-shadow:0 0 10px #22c55e66; }
+    .yellow { background:#eab308; box-shadow:0 0 10px #eab30866; }
+    .red { background:#ef4444; box-shadow:0 0 10px #ef444466; }
+
+    .alert-card {
+      padding:9px 10px;
+      background:#2a1519;
+      border:1px solid #7f1d1d;
+      border-radius:9px;
+      color:#fecaca;
+      font-size:10px;
+      line-height:1.4;
+      margin-bottom:7px;
+    }
+    .alert-card.warn {
+      background:#292415;
+      border-color:#725f12;
+      color:#fef3c7;
+    }
+
+    .legend {
+      position:absolute;
+      left:1.2%;
+      bottom:8.8%;
+      z-index:12;
+      display:flex;
+      gap:8px;
+      background:rgba(10,15,24,.84);
+      border:1px solid rgba(255,255,255,.09);
+      border-radius:11px;
+      padding:8px 10px;
+      font-size:10px;
+      color:#aab8ca;
+    }
+
+    .legend span { display:flex; align-items:center; gap:4px; }
+
+    .controls {
+      position:absolute;
+      left:1.2%;
+      top:23.2%;
+      z-index:13;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .control-btn { width:42px; height:38px; padding:0; font-size:15px; }
+
+    .hscroll-wrap {
+      position: absolute;
+      left: 1.2%;
+      right: 20.2%;
+      bottom: 2.2%;
+      z-index: 16;
+      background: rgba(10,15,24,.88);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.18);
+    }
+
+    .hscroll-wrap label {
+      font-size: 11px;
+      color: #b7c7da;
+      white-space: nowrap;
+    }
+
+    .hscroll-wrap input[type="range"] {
+      flex: 1;
+      appearance: none;
+      height: 6px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #1f2937, #334155);
+      outline: none;
+    }
+    .hscroll-wrap input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 2px solid #dbeafe;
+      cursor: pointer;
+      box-shadow: 0 0 0 4px rgba(59,130,246,.18);
+    }
+    .hscroll-wrap input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: 2px solid #dbeafe;
+      cursor: pointer;
+      box-shadow: 0 0 0 4px rgba(59,130,246,.18);
+    }
+
+    .hscroll-value { font-size: 11px; color: #93c5fd; min-width: 64px; text-align: right; }
+
+    .scenario-grid {
+      display: grid;
+      gap: 7px;
+    }
+    .scenario-btn {
+      width: 100%;
+      text-align: left;
+      padding: 9px 10px;
+      font-size: 11px;
+      background: #111827;
+    }
+    .scenario-btn.danger { background:#2a1519; color:#fecaca; border-color:#7f1d1d; }
+    .scenario-btn.safe { background:#12211a; color:#bbf7d0; border-color:#14532d; }
+
+    #toast {
+      position:absolute;
+      left:50%;
+      bottom:12.5%;
+      transform:translateX(-50%) translateY(20px);
+      background:#101827;
+      border:1px solid rgba(255,255,255,.12);
+      padding:10px 14px;
+      border-radius:10px;
+      font-size:11px;
+      opacity:0;
+      pointer-events:none;
+      transition:.25s;
+      z-index:30;
+    }
+    #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    @media (max-width: 1180px) {
+      .brand span, .nav button:not(.active) { display:none; }
+      .sidebar { width:22.5%; min-width:220px; }
+      .metrics { right:24.5%; grid-template-columns:repeat(3,1fr); }
+      .hscroll-wrap { right: 24.5%; }
+    }
+  
+    .iot-sync-badge {
+      position:absolute;
+      left:1.2%;
+      top:18.8%;
+      z-index:17;
+      background:rgba(10,15,24,.90);
+      border:1px solid rgba(56,189,248,.35);
+      color:#7dd3fc;
+      border-radius:10px;
+      padding:7px 10px;
+      font-size:10px;
+      backdrop-filter:blur(10px);
+    }
+    .iot-sync-badge.live {
+      border-color:rgba(34,197,94,.5);
+      color:#86efac;
+    }
+
+  
+        #iotPage { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121824; color: #ffffff; margin: 0; padding: 20px; }
+        #iotPage .dashboard { max-width: 900px; margin: auto; background: #1a2332; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        /* Cabeçalho da Empresa */
+        #iotPage .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2a364f; padding-bottom: 15px; margin-bottom: 20px; }
+        #iotPage .header h1 { font-size: 1.4rem; color: #00d2ff; margin: 0; }
+        #iotPage .status-badge { background: #28a745; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+
+        /* Banner de Alerta Ativo */
+        #iotPage .alert-banner { padding: 20px; border-radius: 8px; background: #2a364f; text-align: center; font-size: 1.1rem; margin-bottom: 25px; transition: all 0.3s; border-left: 8px solid #6c757d; }
+        #iotPage .alert-banner strong { font-size: 1.3rem; }
+
+        /* Grid do Simulador de Crachá e Painel */
+        #iotPage .main-content { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        
+        /* Painel de Controle Simulado do Operador */
+        #iotPage .cracha-sim { background: #243044; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #344665; }
+        #iotPage .cracha-sim h3 { margin-top: 0; color: #e0e0e0; font-size: 1rem; }
+        
+        #iotPage .btn-cracha { 
+            width: 130px; height: 130px; border-radius: 50%; border: 4px solid #495057; 
+            font-size: 0.85rem; font-weight: bold; color: white; cursor: pointer; 
+            background: #0d6efd; box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+            margin: 15px auto; display: flex; align-items: center; justify-content: center;
+            user-select: none; outline: none; transition: background 0.3s;
+        }
+
+        /* Tabela de Ocorrências da Central */
+        #iotPage .logs-container { background: #243044; padding: 15px; border-radius: 8px; border: 1px solid #344665; }
+        #iotPage .logs-container h3 { margin-top: 0; font-size: 1rem; color: #00d2ff; }
+        
+        #iotPage table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
+        #iotPage th { background: #1a2332; color: #a0aec0; padding: 8px; border-bottom: 2px solid #344665; }
+        #iotPage td { padding: 10px 8px; border-bottom: 1px solid #2a364f; }
+        
+        #iotPage .tag-risco { background: #ffc107; color: #000; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+        #iotPage .tag-emergencia { background: #dc3545; color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+    
+        #iotPage .config-panel {
+            margin-top: 18px; background:#1d293b; padding:14px; border-radius:8px;
+            border:1px solid #344665; text-align:left;
+        }
+        #iotPage .config-panel label { display:block; font-size:.75rem; color:#a0aec0; margin-bottom:6px; }
+        #iotPage .config-panel select {
+            width:100%; padding:9px; border-radius:6px; border:1px solid #445775;
+            background:#121824; color:#fff; outline:none;
+        }
+        #iotPage .sync-status {
+            margin-top:10px; padding:8px 10px; border-radius:6px;
+            background:#15283a; color:#7dd3fc; font-size:.75rem; text-align:center;
+        }
+
+    
+
+    .app-switcher {
+      position:absolute;
+      top:1.6%;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:50;
+      display:flex;
+      gap:6px;
+      padding:5px;
+      background:rgba(4,8,15,.94);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,.3);
+    }
+    .app-switcher button {
+      border:1px solid transparent;
+      background:transparent;
+      color:#9fb0c4;
+      padding:8px 14px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:700;
+      font-size:12px;
+    }
+    .app-switcher button.active {
+      background:#1d4ed8;
+      color:#fff;
+      border-color:#3b82f6;
+    }
+
+    #iotPage {
+      position:absolute;
+      inset:0;
+      z-index:40;
+      background:#121824;
+      color:#fff;
+      overflow:auto;
+      padding:80px 20px 30px;
+      display:none;
+    }
+    #iotPage.show { display:block; }
+    #threePage.hidden { visibility:hidden; pointer-events:none; }
+
+    #iotPage .dashboard {
+      max-width:1000px;
+      margin:auto;
+    }
+
+    #iotPage .back3d {
+      margin-bottom:14px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    #iotPage .back3d .mini-note {
+      font-size:12px;
+      color:#9fb0c4;
+    }
+    #iotPage .open3d-btn {
+      border:1px solid #3b82f6;
+      background:#1d4ed8;
+      color:#fff;
+      padding:9px 12px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:700;
+    }
+
+    .view-panel {
+      position:absolute;
+      left:1.2%;
+      top:43%;
+      z-index:14;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      width:150px;
+      padding:10px;
+      background:rgba(10,15,24,.88);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:12px;
+      box-shadow:0 8px 28px rgba(0,0,0,.18);
+      backdrop-filter:blur(10px);
+    }
+    .view-panel h4 {
+      margin:0 0 2px 0;
+      font-size:11px;
+      color:#b7c7da;
+      letter-spacing:.4px;
+    }
+    .view-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:6px;
+    }
+    .view-btn {
+      border:1px solid rgba(255,255,255,.10);
+      background:#111b2a;
+      color:#dce8f8;
+      padding:8px 6px;
+      border-radius:9px;
+      cursor:pointer;
+      font-size:11px;
+      font-weight:700;
+    }
+    .view-btn:hover { background:#1a2638; }
+    .view-btn.active {
+      background:#1d4ed8;
+      border-color:#3b82f6;
+    }
+
+    body.panel-closed .metrics {
+      right: 1.2%;
+    }
+
+    body.panel-closed .hscroll-wrap {
+      right: 1.2%;
+    }
+
+    body.panel-closed .legend {
+      bottom: 8.8%;
+    }
+
+    .panel-fab {
+      position:absolute;
+      right:1.2%;
+      top:10.2%;
+      z-index:19;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(10,15,24,.90);
+      color:#dce8f8;
+      padding:9px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:700;
+      backdrop-filter:blur(10px);
+      box-shadow:0 8px 28px rgba(0,0,0,.18);
+    }
+
+    .panel-fab:hover {
+      background:#182338;
+    }
+
+    body:not(.panel-closed) .panel-fab {
+      opacity:0;
+      pointer-events:none;
+    }
+
+    .sound-toggle {
+      position:absolute;
+      right:1.2%;
+      bottom:18.6%;
+      z-index:19;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(10,15,24,.90);
+      color:#dce8f8;
+      padding:9px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:700;
+      backdrop-filter:blur(10px);
+      box-shadow:0 8px 28px rgba(0,0,0,.18);
+    }
+    .sound-toggle:hover {
+      background:#182338;
+    }
+    .sound-toggle.active {
+      border-color: rgba(34,197,94,.45);
+      color:#86efac;
+    }
+
+    .recovery-panel {
+      position:absolute;
+      right:1.2%;
+      bottom:4.2%;
+      z-index:19;
+      width:250px;
+      background:rgba(10,15,24,.92);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:14px;
+      padding:12px;
+      color:#e6eef9;
+      box-shadow:0 12px 30px rgba(0,0,0,.20);
+      backdrop-filter:blur(10px);
+    }
+    .recovery-panel h4 {
+      margin:0 0 6px 0;
+      font-size:12px;
+      letter-spacing:.3px;
+      color:#b7c7da;
+    }
+    .recovery-panel .state {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-bottom:8px;
+      font-size:14px;
+      font-weight:700;
+    }
+    .recovery-panel .state-dot {
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:#22c55e;
+      box-shadow:0 0 12px rgba(34,197,94,.45);
+      flex:0 0 auto;
+    }
+    .recovery-panel.problem .state-dot {
+      background:#ef4444;
+      box-shadow:0 0 12px rgba(239,68,68,.45);
+    }
+    .recovery-panel p {
+      margin:0 0 10px 0;
+      font-size:11px;
+      color:#9fb0c4;
+      line-height:1.45;
+    }
+
+</style>
+</head>
+<body class="panel-closed">
+<div id="viewport">
+<div id="threePage">
+  <div id="scene"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">FV</div>
+      <div>
+        <h1>Factory Vision 3D</h1>
+        <span>Planta industrial 3D • produção, montagem, estoques, administrativo, manutenção e expedição • 1.000 m²</span>
+      </div>
+    </div>
+    <div class="nav">
+      <button class="active" onclick="closeSidebar()">Visão 3D</button>
+      <button onclick="openSidebar('summary')">Painel</button>
+      <button onclick="openSidebar('sectors')">Setores</button>
+      <button onclick="openSidebar('accidents')">Acidentes</button>
+      <button onclick="toggleSimulation()">Simulação</button>
+    </div>
+  </header>
+
+  <section class="metrics">
+    <div class="metric"><small>Área total</small><strong>1.000 m²</strong><em>40 × 25 m</em></div>
+    <div class="metric"><small>Produção diária</small><strong id="prod">1.248 un.</strong><em>▲ 8,4%</em></div>
+    <div class="metric"><small>Eficiência média</small><strong id="eff">86%</strong><em>Meta: 90%</em></div>
+    <div class="metric"><small>Tempo ocioso</small><strong id="idle">37 min</strong><em>▼ 12% hoje</em></div>
+    <div class="metric"><small>Máquinas operando</small><strong id="running">7 / 9</strong><em id="simState">Simulação ativa</em></div>
+    <div class="metric alert"><small>Incidente ativo</small><strong id="incidentStatus">Nenhum</strong><em id="incidentRisk">Risco controlado</em></div>
+  </section>
+
+  <div class="iot-sync-badge live" id="iotSyncBadge">📡 Crachá IoT conectado</div>
+
+  <div class="controls">
+    <button class="control-btn" onclick="resetCamera()" title="Resetar câmera">⌂</button>
+    <button class="control-btn" onclick="toggleDimensions()" title="Mostrar/Ocultar medidas">📏</button>
+    <button class="control-btn" onclick="resetAccidents()" title="Resetar acidentes">⟲</button>
+  </div>
+
+  <div class="view-panel">
+    <h4>VISTAS DA FÁBRICA</h4>
+    <div class="view-grid">
+      <button class="view-btn active" id="viewIsoBtn" onclick="setViewPreset('iso')">Isométrica</button>
+      <button class="view-btn" id="viewTopBtn" onclick="setViewPreset('top')">De cima</button>
+      <button class="view-btn" id="viewSideBtn" onclick="setViewPreset('side')">De lado</button>
+      <button class="view-btn" id="viewFrontBtn" onclick="setViewPreset('front')">Frontal</button>
+    </div>
+    <button class="view-btn" onclick="centerHorizontal()">Centralizar área</button>
+  </div>
+
+  <button class="panel-fab" onclick="openSidebar('summary')">☰ Abrir painel</button>
+
+  <button class="sound-toggle active" id="soundToggleBtn" onclick="toggleEmergencySound()">🔊 Alarme armado</button>
+    <p id="factoryStateText">Nenhum problema ativo. A fábrica está em perfeito estado e pronta para operar.</p>
+  </div>
+
+  <aside class="sidebar" id="sidePanel">
+    <button class="sidebar-close" onclick="closeSidebar()" title="Fechar painel">×</button>
+    <h2 id="panelTitle">Layout da fábrica</h2>
+    <div class="hint" id="panelHint">Use os botões de cenário para simular acidentes, visualizar a área afetada e observar o impacto nos indicadores operacionais.</div>
+
+    <h3 id="accidentsSection">SIMULAÇÃO DE ACIDENTES</h3>
+    <div class="scenario-grid">
+      <button class="scenario-btn danger" id="scenarioForklift" onclick="simulateAccident('forklift')">🚧 Colisão com empilhadeira</button>
+      <button class="scenario-btn danger" id="scenarioCNC" onclick="simulateAccident('fire')">🔥 Incêndio / superaquecimento na CNC 03</button>
+      <button class="scenario-btn danger" onclick="simulateAccident('spill')">🧪 Derramamento na expedição</button>
+      <button class="scenario-btn danger" onclick="simulateAccident('fall')">📦 Queda de material no estoque</button>
+      <button class="scenario-btn safe" onclick="resetAccidents()">✅ Resetar cenário de acidente</button>
+    </div>
+
+    <h3 id="sectorsSection">SETORES</h3>
+    <div id="zoneList"></div>
+
+    <h3>MÁQUINAS</h3>
+    <div id="machineList"></div>
+
+    <h3>ALERTAS RECENTES</h3>
+    <div id="alerts"></div>
+  </aside>
+
+  <div class="legend">
+    <span><i class="dot green"></i>Operando</span>
+    <span><i class="dot yellow"></i>Atenção</span>
+    <span><i class="dot red"></i>Parada</span>
+  </div>
+
+  <div class="hscroll-wrap">
+    <label for="panX">Deslocar visualização horizontal</label>
+    <input id="panX" type="range" min="-18" max="18" step="0.1" value="0" />
+    <div class="hscroll-value" id="panXValue">Centro</div>
+  </div>
+
+  <div id="toast"></div>
+</div>
+
+<div class="app-switcher">
+  <button id="tab3D" class="active" onclick="showApp('3d')">🏭 Digital Twin 3D</button>
+  <button id="tabIoT" onclick="showApp('iot')">📡 Crachá IoT</button>
+</div>
+
+<div id="iotPage">
+  <div class="back3d">
+    <div class="mini-note">O alerta gerado aqui é enviado diretamente para a planta 3D deste mesmo arquivo.</div>
+    <button class="open3d-btn" onclick="showApp('3d')">Ver planta 3D</button>
+  </div>
+<div class="dashboard">
+    <!-- Cabeçalho da Central -->
+    <div class="header">
+        <h1>🏢 Central SESMT & Segurança Industrial</h1>
+        <span class="status-badge" id="systemStatus">● Sistema Online</span>
+    </div>
+
+    <!-- Tela Principal de Alerta Recebido -->
+    <div class="alert-banner" id="alertBanner">
+        🟢 <strong>Nenhum alerta ativo</strong><br>
+        Todos os setores operando dentro dos padrões de segurança.
+    </div>
+
+    <div class="main-content">
+        <!-- Lado Esquerdo: Botão Simulado do Crachá -->
+        <div class="cracha-sim">
+            <h3>Dispositivo IoT do Operador</h3>
+            <p style="font-size: 0.75rem; color: #a0aec0;">Simular disparo de sinal:</p>
+            
+            <button class="btn-cracha" id="btnCracha">CRACHÁ IoT<br>(Clique / Segure)</button>
+            
+            <p style="font-size: 0.75rem; color: #a0aec0;">
+                • 1 Clique: Risco Preventivo<br>
+                • Segurar 1.5s: Emergência
+            </p>
+
+            <div class="config-panel">
+                <label for="setorSelect">Setor / Antena simulada</label>
+                <select id="setorSelect">
+                    <option value="Corte">Corte / Produção (Antena AP-01)</option>
+                    <option value="Produção">Produção (Antena AP-02)</option>
+                    <option value="Montagem">Montagem (Antena AP-03)</option>
+                    <option value="Estoque Matérias-Primas">Estoque Matérias-Primas (AP-04)</option>
+                    <option value="Estoque Produtos Acabados">Estoque Produtos Acabados (AP-05)</option>
+                    <option value="Manutenção">Manutenção (AP-06)</option>
+                    <option value="Expedição / Doca">Expedição / Doca (AP-07)</option>
+                    <option value="Administrativo">Administrativo (AP-08)</option>
+                </select>
+                <label for="problemaSelect" style="margin-top:12px;">Problema identificado</label>
+                <select id="problemaSelect">
+                    <option value="Superaquecimento de máquina">Superaquecimento de máquina</option>
+                    <option value="Falha mecânica">Falha mecânica</option>
+                    <option value="Vibração anormal">Vibração anormal</option>
+                    <option value="Vazamento / derramamento">Vazamento / derramamento</option>
+                    <option value="Obstrução de corredor">Obstrução de corredor</option>
+                    <option value="Queda de material">Queda de material</option>
+                    <option value="Risco elétrico">Risco elétrico</option>
+                    <option value="Princípio de incêndio">Princípio de incêndio</option>
+                </select>
+                <div class="sync-status" id="syncStatus">🔗 Integração 3D pronta</div>
+            </div>
+
+        </div>
+
+        <!-- Lado Direito: Registro em Tempo Real na Empresa -->
+        <div class="logs-container">
+            <h3>📋 Histórico de Alertas Recebidos</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Hora</th>
+                        <th>Nível</th>
+                        <th>Operador / Líder</th>
+                        <th>Localização</th>
+                        <th>Problema</th>
+                    </tr>
+                </thead>
+                <tbody id="logTableBody">
+                    <!-- Registros aparecerão aqui em tempo real -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('scene');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b111b);
+scene.fog = new THREE.Fog(0x0b111b, 42, 90);
+
+const camera = new THREE.PerspectiveCamera(42, 16/9, 0.1, 220);
+camera.position.set(36, 30, 34);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0,0,0);
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.minDistance = 18;
+controls.maxDistance = 74;
+
+const defaultCameraPos = new THREE.Vector3(36, 30, 34);
+const defaultTarget = new THREE.Vector3(0, 0, 0);
+const cameraOffset = new THREE.Vector3().subVectors(defaultCameraPos, defaultTarget);
+
+scene.add(new THREE.HemisphereLight(0xdbeafe, 0x25311d, 2.2));
+
+const sun = new THREE.DirectionalLight(0xffffff, 2.4);
+sun.position.set(22,32,16);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left = -32;
+sun.shadow.camera.right = 32;
+sun.shadow.camera.top = 24;
+sun.shadow.camera.bottom = -24;
+scene.add(sun);
+
+const fillLight1 = new THREE.PointLight(0x9fd4ff, 0.65, 90);
+fillLight1.position.set(-16, 10, -9);
+scene.add(fillLight1);
+
+const fillLight2 = new THREE.PointLight(0xfff7d6, 0.55, 90);
+fillLight2.position.set(13, 10, 8);
+scene.add(fillLight2);
+
+const officeLight = new THREE.PointLight(0xffe9b5, 0.85, 40);
+officeLight.position.set(-13.5, 4.2, 7);
+scene.add(officeLight);
+
+function mat(color, roughness=.65, metalness=.15, transparent=false, opacity=1) {
+  return new THREE.MeshStandardMaterial({color, roughness, metalness, transparent, opacity});
+}
+function addMesh(geometry, material, x=0,y=0,z=0, rx=0,ry=0,rz=0, cast=true, receive=true) {
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(x,y,z);
+  mesh.rotation.set(rx,ry,rz);
+  mesh.castShadow = cast;
+  mesh.receiveShadow = receive;
+  scene.add(mesh);
+  return mesh;
+}
+
+const FACTORY_W = 40;
+const FACTORY_D = 25;
+
+addMesh(new THREE.BoxGeometry(FACTORY_W,.4,FACTORY_D), mat(0x59636f,.88,.08), 0,-.2,0,0,0,0,false,true);
+const grid = new THREE.GridHelper(FACTORY_W, 8, 0x5f7b99, 0x334155);
+grid.position.y = 0.02;
+grid.material.opacity = 0.14;
+grid.material.transparent = true;
+scene.add(grid);
+
+// brilho sutil do piso
+addMesh(new THREE.BoxGeometry(FACTORY_W-1.6, .02, FACTORY_D-1.6), mat(0x8d97a4,.2,.22,true,.20), 0,0.03,0,0,0,0,false,true);
+
+addMesh(new THREE.BoxGeometry(FACTORY_W, 0.08, 0.2), mat(0x7d8b99), 0,0.04,-12.5,0,0,0,false,true);
+addMesh(new THREE.BoxGeometry(FACTORY_W, 0.08, 0.2), mat(0x7d8b99), 0,0.04,12.5,0,0,0,false,true);
+addMesh(new THREE.BoxGeometry(0.2, 0.08, FACTORY_D), mat(0x7d8b99), -20,0.04,0,0,0,0,false,true);
+addMesh(new THREE.BoxGeometry(0.2, 0.08, FACTORY_D), mat(0x7d8b99), 20,0.04,0,0,0,0,false,true);
+
+const wallMat = mat(0x737f8c,.72,.08,true,.82);
+addMesh(new THREE.BoxGeometry(FACTORY_W,5,0.25), wallMat, 0,2.5,-12.4,0,0,0,false,true);
+addMesh(new THREE.BoxGeometry(FACTORY_W,5,0.25), wallMat, 0,2.5,12.4,0,0,0,false,true);
+addMesh(new THREE.BoxGeometry(0.25,5,FACTORY_D), wallMat, -19.9,2.5,0,0,0,0,false,true);
+addMesh(new THREE.BoxGeometry(0.25,5,FACTORY_D), wallMat, 19.9,2.5,0,0,0,0,false,true);
+addMesh(new THREE.BoxGeometry(8,4.2,0.12), mat(0x9fb0c0,.3,.2,true,.35), 5,2.1,12.45,0,0,0,false,true);
+
+for (let x of [-16,-8,0,8,16]) {
+  for (let z of [-10,0,10]) {
+    addMesh(new THREE.BoxGeometry(0.35,5.2,0.35), mat(0x7b8795,.55,.18), x,2.6,z);
+  }
+}
+addMesh(new THREE.BoxGeometry(FACTORY_W-0.8,0.2,FACTORY_D-0.8), mat(0xc4d3e3,.2,.05,true,.17), 0,5.25,0,0,0,0,false,true);
+
+// vigas e luminárias para dar mais realismo
+for (let x of [-16,-8,0,8,16]) {
+  addMesh(new THREE.BoxGeometry(0.28,0.22,FACTORY_D-0.8), mat(0x66707c,.52,.18), x,4.85,0,0,0,0,false,true);
+}
+for (let z of [-8,0,8]) {
+  addMesh(new THREE.BoxGeometry(FACTORY_W-1.2,0.22,0.28), mat(0x67717d,.52,.18), 0,4.82,z,0,0,0,false,true);
+}
+for (let x of [-12,-4,4,12]) {
+  const lampBar = addMesh(new THREE.BoxGeometry(5.4,0.08,0.22), mat(0xf8fafc,.15,.6,true,.82), x,4.45,-2.2,0,0,0,false,true);
+  lampBar.material.emissive = new THREE.Color(0xffffff);
+  lampBar.material.emissiveIntensity = 0.45;
+}
+for (let x of [-12,-4,4,12]) {
+  const lampBar = addMesh(new THREE.BoxGeometry(5.4,0.08,0.22), mat(0xf8fafc,.15,.6,true,.82), x,4.45,5.2,0,0,0,false,true);
+  lampBar.material.emissive = new THREE.Color(0xffffff);
+  lampBar.material.emissiveIntensity = 0.42;
+}
+
+const lineMat = new THREE.MeshBasicMaterial({color:0xfacc15});
+function floorLine(w,d,x,z) {
+  const g = new THREE.Mesh(new THREE.BoxGeometry(w,.03,d), lineMat);
+  g.position.set(x,.03,z);
+  scene.add(g);
+}
+floorLine(36,.12,0,-9.5);
+floorLine(36,.12,0,9.5);
+floorLine(.12,18,-12,0);
+floorLine(.12,18,6.5,0);
+floorLine(.12,18,15,0);
+
+const zones = [
+  { name:'Estoque Matérias-Primas', x:-13.5, z:-6.5, w:11, d:10.5, area:115.5, color:0x0f766e, desc:'Recebimento e armazenagem de matérias-primas em racks.' },
+  { name:'Produção', x:-2.5, z:0.0, w:12, d:15, area:180, color:0x1d4ed8, desc:'Área principal de produção com corte, CNC, prensas e linhas de processo.' },
+  { name:'Montagem', x:10.0, z:-5.5, w:10, d:10, area:100, color:0x7c3aed, desc:'Bancadas e células de montagem dos subconjuntos.' },
+  { name:'Estoque Produtos Acabados', x:13.5, z:5.0, w:9, d:8, area:72, color:0x047857, desc:'Produtos finalizados aguardando separação e expedição.' },
+  { name:'Administrativo', x:-13.5, z:7.0, w:9, d:7, area:63, color:0x475569, desc:'Escritórios administrativos e supervisão da operação.' },
+  { name:'Manutenção', x:-13.5, z:10.5, w:9, d:4, area:36, color:0xb45309, desc:'Oficina, ferramentas, peças e apoio técnico à fábrica.' },
+  { name:'Expedição / Doca', x:3.5, z:9.0, w:11, d:6, area:66, color:0xbe123c, desc:'Área de staging, conferência e carregamento de caminhões.' },
+  { name:'Corte', x:-5.5, z:-4.5, w:5.5, d:6, area:33, color:0x2563eb, desc:'Subárea de corte integrada ao setor de Produção.' }
+];
+const zoneMeshes = [];
+const dimensionGroup = new THREE.Group();
+scene.add(dimensionGroup);
+
+function makeTextSprite(text, options = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = options.width || 512;
+  canvas.height = options.height || 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = options.bg || 'rgba(10,15,24,.88)';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = options.stroke || 'rgba(255,255,255,.15)';
+  ctx.strokeRect(1,1,canvas.width-2,canvas.height-2);
+  ctx.fillStyle = options.color || '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = options.font || 'bold 36px Arial';
+  ctx.fillText(text, canvas.width/2, canvas.height/2);
+  const tex = new THREE.CanvasTexture(canvas);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+  spr.scale.set(options.scaleX || 7, options.scaleY || 1.8, 1);
+  return spr;
+}
+function addZone(zone, index) {
+  const base = addMesh(new THREE.BoxGeometry(zone.w, .05, zone.d), mat(zone.color,.68,.06,true,.18), zone.x, .03, zone.z, 0,0,0,false,true);
+  base.userData = { type: 'zone', zone, index };
+
+  const borderMat = new THREE.MeshBasicMaterial({ color: zone.color });
+  addMesh(new THREE.BoxGeometry(zone.w, .028, .08), borderMat, zone.x, .06, zone.z - zone.d/2, 0,0,0,false,false);
+  addMesh(new THREE.BoxGeometry(zone.w, .028, .08), borderMat, zone.x, .06, zone.z + zone.d/2, 0,0,0,false,false);
+  addMesh(new THREE.BoxGeometry(.08, .028, zone.d), borderMat, zone.x - zone.w/2, .06, zone.z, 0,0,0,false,false);
+  addMesh(new THREE.BoxGeometry(.08, .028, zone.d), borderMat, zone.x + zone.w/2, .06, zone.z, 0,0,0,false,false);
+
+  const label = makeTextSprite(zone.name, {
+    scaleX: Math.min(Math.max(zone.w * 0.55, 4.8), 8.6),
+    scaleY: 1.26,
+    bg:'rgba(12,18,28,.82)',
+    stroke:'rgba(255,255,255,.24)'
+  });
+  label.position.set(zone.x, 2.15, zone.z);
+  scene.add(label);
+
+  const dim = makeTextSprite(`${zone.w}m × ${zone.d}m • ${zone.area} m²`, {
+    scaleX: 5.6,
+    scaleY: 1.02,
+    bg:'rgba(7,14,24,.74)',
+    font:'bold 29px Arial'
+  });
+  dim.position.set(zone.x, 1.02, zone.z);
+  scene.add(dim);
+  dimensionGroup.add(dim);
+  zoneMeshes.push(base);
+}
+zones.forEach(addZone);
+
+function addDimensionLabel(text, x, y, z, sx=4.3, sy=.9) {
+  const spr = makeTextSprite(text, { scaleX:sx, scaleY:sy, bg:'rgba(7,14,24,.80)', font:'bold 28px Arial' });
+  spr.position.set(x,y,z);
+  dimensionGroup.add(spr);
+}
+addDimensionLabel('40 m', 0, 0.9, 13.2, 3.2, .75);
+addDimensionLabel('25 m', 21.2, 0.9, 0, 3.2, .75);
+function dimensionBar(len, x, z, horizontal=true) {
+  const geom = horizontal ? new THREE.BoxGeometry(len, .03, .06) : new THREE.BoxGeometry(.06, .03, len);
+  const bar = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({color:0xffffff}));
+  bar.position.set(x,.03,z);
+  dimensionGroup.add(bar);
+}
+dimensionBar(40,0,13.05,true);
+dimensionBar(25,20.55,0,false);
+
+function rack(x,z,rows=3) {
+  const frameColor = 0x31506a;
+  for(let r=0;r<rows;r++){
+    addMesh(new THREE.BoxGeometry(3.7,.1,1.1), mat(0xa56d39,.62,.12), x,.55+r*.85,z);
+    for(let c=-1.2;c<=1.2;c+=1.2){
+      addMesh(new THREE.BoxGeometry(.78,.58,.82), mat(0xc48a4d,.7,.06), x+c,.88+r*.85,z);
+    }
+  }
+  addMesh(new THREE.BoxGeometry(.14,3,1.25), mat(frameColor,.52,.24), x-1.85,1.5,z);
+  addMesh(new THREE.BoxGeometry(.14,3,1.25), mat(frameColor,.52,.24), x+1.85,1.5,z);
+  addMesh(new THREE.BoxGeometry(3.84,.08,1.24), mat(0x274256,.62,.25,true,.18), x,2.95,z);
+}
+
+// ------------------------------------------------------------------
+// DETALHAMENTO DA PLANTA INDUSTRIAL — inspirado na planta de referência
+// ------------------------------------------------------------------
+
+// Racks de matérias-primas
+rack(-15.7,-9.0); rack(-15.7,-5.5); rack(-15.7,-2.0);
+rack(-11.5,-9.0); rack(-11.5,-5.5);
+
+// Racks de produtos acabados
+rack(12.2,4.2); rack(12.2,7.2); rack(16.0,4.2); rack(16.0,7.2);
+
+// Paletes no estoque de acabados
+for (let px of [11.8,13.2,14.6,16.0]) {
+  for (let pz of [8.8,10.1]) {
+    addMesh(new THREE.BoxGeometry(1.05,.55,1.05), mat(0xa06c3b), px,.3,pz);
+  }
+}
+
+// Linhas de produção / esteiras
+conveyor(-1.7,-5.2,5.8,0);
+conveyor(-1.0,4.4,8.8,0);
+conveyor(4.1,0.2,7.0,Math.PI/2);
+
+// Bancadas de montagem
+function workbench(x,z,rot=0) {
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(2.5,.16,1), mat(0x9c744b,.72,.08));
+  top.position.y=.9;
+  g.add(top);
+  for (let lx of [-1.0,1.0]) {
+    for (let lz of [-.35,.35]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(.12,.9,.12), mat(0x4b5563,.5,.3));
+      leg.position.set(lx,.45,lz);
+      g.add(leg);
+    }
+  }
+  g.position.set(x,0,z);
+  g.rotation.y = rot;
+  scene.add(g);
+}
+workbench(8.4,-8.1); workbench(11.3,-8.1);
+workbench(8.4,-4.4); workbench(11.3,-4.4);
+workbench(8.4,-1.1); workbench(11.3,-1.1);
+
+function worker(x, z, shirt=0x2563eb) {
+  const person = new THREE.Group();
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(.18,.22,.72,14), mat(shirt,.72,.08));
+  torso.position.y = .95;
+  person.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.17,16,16), mat(0xf1c27d,.85,.02));
+  head.position.y = 1.45;
+  person.add(head);
+  const leg1 = new THREE.Mesh(new THREE.BoxGeometry(.10,.52,.10), mat(0x1f2937,.72,.08));
+  leg1.position.set(-.07,.3,0); person.add(leg1);
+  const leg2 = new THREE.Mesh(new THREE.BoxGeometry(.10,.52,.10), mat(0x1f2937,.72,.08));
+  leg2.position.set(.07,.3,0); person.add(leg2);
+  const arm1 = new THREE.Mesh(new THREE.BoxGeometry(.08,.42,.08), mat(0xf1c27d,.85,.02));
+  arm1.position.set(-.24,.98,0); person.add(arm1);
+  const arm2 = new THREE.Mesh(new THREE.BoxGeometry(.08,.42,.08), mat(0xf1c27d,.85,.02));
+  arm2.position.set(.24,.98,0); person.add(arm2);
+  person.position.set(x,0,z);
+  scene.add(person);
+}
+worker(6.3,-2.5,0x2563eb);
+worker(7.8,1.6,0x16a34a);
+worker(12.8,1.8,0xf59e0b);
+worker(-1.4,6.4,0x7c3aed);
+
+// Administrativo com mezanino
+const adminGroup = new THREE.Group();
+const adminFloor = new THREE.Mesh(new THREE.BoxGeometry(8.4,.22,6.2), mat(0x765b43,.85,.05));
+adminFloor.position.set(-13.5,2.7,7.0); adminGroup.add(adminFloor);
+const adminWallBack = new THREE.Mesh(new THREE.BoxGeometry(8.4,2.8,.16), mat(0xc5ccd4,.75,.02,true,.72));
+adminWallBack.position.set(-13.5,1.4,10.0); adminGroup.add(adminWallBack);
+const adminWallSide = new THREE.Mesh(new THREE.BoxGeometry(.16,2.8,6.2), mat(0xc5ccd4,.75,.02,true,.72));
+adminWallSide.position.set(-17.65,1.4,7.0); adminGroup.add(adminWallSide);
+scene.add(adminGroup);
+
+// Escritórios/mesas no administrativo
+for (let i=0;i<3;i++) {
+  addMesh(new THREE.BoxGeometry(1.55,.12,.75), mat(0x8d6a46), -16.0+i*2.4,3.35,7.1);
+  addMesh(new THREE.BoxGeometry(.55,.8,.55), mat(0x1f2937), -15.6+i*2.4,3.0,7.8);
+}
+
+// Escada do mezanino
+for (let s=0;s<8;s++) {
+  addMesh(new THREE.BoxGeometry(1.5,.14,.42), mat(0x4b5563,.5,.35), -9.9, .2+s*.32, 9.8-s*.38);
+}
+
+// Área de manutenção na frente esquerda
+addMesh(new THREE.BoxGeometry(7.5,.12,3.4), mat(0x6b4a30,.85,.05,true,.45), -13.5,.06,10.5,0,0,0,false,true);
+for (let i=0;i<3;i++) {
+  addMesh(new THREE.BoxGeometry(1.7,.16,.75), mat(0x8b6b4a), -16+i*2.3,.85,10.6);
+}
+addMesh(new THREE.BoxGeometry(1.1,1.8,.65), mat(0xb91c1c,.45,.3), -10.5,.9,10.5);
+
+// Doca frontal e área externa
+addMesh(new THREE.BoxGeometry(12,.12,5.5), mat(0x444c57,.9,.02), 4.5,.04,14.4,0,0,0,false,true);
+
+// Faixas de circulação na doca
+for (let x=-.5;x<9.5;x+=1.2) {
+  addMesh(new THREE.BoxGeometry(.7,.025,2.2), new THREE.MeshBasicMaterial({color:0xfacc15}), x,.075,12.8,0,0,0,false,false);
+}
+
+// Área externa/rua em frente
+addMesh(new THREE.BoxGeometry(46,.12,8), mat(0x303740,.95,.02), 0,-.02,19.4,0,0,0,false,true);
+for (let x=-18;x<=18;x+=5) {
+  addMesh(new THREE.BoxGeometry(2.5,.025,.15), new THREE.MeshBasicMaterial({color:0xd8dee8}), x,.055,19.4,0,0,0,false,false);
+}
+
+// Calçada frontal
+addMesh(new THREE.BoxGeometry(46,.1,1.3), mat(0x7b8188,.95,.01), 0,.01,15.4,0,0,0,false,true);
+
+// Cercamento simples
+for (let x=-19;x<=19;x+=3.8) {
+  addMesh(new THREE.BoxGeometry(.09,1.6,.09), mat(0x374151,.45,.5), x,.8,15.9);
+}
+for (let x=-19;x<19;x+=3.8) {
+  addMesh(new THREE.BoxGeometry(3.6,.06,.06), mat(0x4b5563,.45,.5), x+1.8,.7,15.9);
+  addMesh(new THREE.BoxGeometry(3.6,.06,.06), mat(0x4b5563,.45,.5), x+1.8,1.35,15.9);
+}
+
+function tree(x,z) {
+  const trunk = addMesh(new THREE.CylinderGeometry(.10,.12,.9,10), mat(0x6b4f2d,.85,.04), x,.45,z,0,0,0,true,true);
+  const crown = addMesh(new THREE.SphereGeometry(.55,14,14), mat(0x3f7f4d,.85,.02), x,1.2,z,0,0,0,true,true);
+}
+tree(-18.3,14.1);
+tree(-15.8,14.2);
+tree(16.8,14.4);
+tree(18.6,13.8);
+
+// Sinalização de pedestres
+for (let x=-17;x<-10;x+=1.2) {
+  addMesh(new THREE.BoxGeometry(.72,.025,2.4), new THREE.MeshBasicMaterial({color:0xf4f4f5}), x,.06,16.6,0,0,0,false,false);
+}
+
+const statusColors = { running: 0x22c55e, warning: 0xeab308, stopped: 0xef4444 };
+const machinesData = [
+  {name:'Corte Laser 01', x:-6.2, z:-5.3, status:'running', efficiency:91, rate:42, idle:4, sector:'Corte'},
+  {name:'Serra 01', x:-4.1, z:-5.3, status:'running', efficiency:87, rate:38, idle:5, sector:'Corte'},
+  {name:'CNC 01', x:-5.7, z:-1.8, status:'running', efficiency:92, rate:40, idle:4, sector:'Produção'},
+  {name:'CNC 02', x:-2.7, z:-1.8, status:'running', efficiency:89, rate:39, idle:5, sector:'Produção'},
+  {name:'CNC 03', x:0.3, z:-1.8, status:'stopped', efficiency:64, rate:0, idle:12, sector:'Produção'},
+  {name:'Prensa 01', x:-5.2, z:2.0, status:'running', efficiency:90, rate:36, idle:3, sector:'Produção'},
+  {name:'Prensa 02', x:-1.9, z:2.0, status:'warning', efficiency:76, rate:29, idle:8, sector:'Produção'},
+  {name:'Montagem 01', x:8.7, z:-6.3, status:'running', efficiency:94, rate:48, idle:2, sector:'Montagem'},
+  {name:'Montagem 02', x:11.5, z:-6.3, status:'running', efficiency:90, rate:44, idle:3, sector:'Montagem'},
+  {name:'Embalagem 01', x:10.0, z:-2.8, status:'running', efficiency:93, rate:46, idle:2, sector:'Montagem'}
+];
+const originalMachineStates = JSON.parse(JSON.stringify(machinesData));
+
+const machineMeshes = [];
+function createMachine(m, i) {
+  const group = new THREE.Group();
+  group.position.set(m.x,0,m.z);
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(2.8,.36,1.9), mat(0x263341,.58,.38));
+  base.position.y=.22; base.castShadow=true; base.receiveShadow=true; group.add(base);
+
+  const feet1 = new THREE.Mesh(new THREE.BoxGeometry(.18,.28,.18), mat(0x111827,.78,.18));
+  feet1.position.set(-1.05,.14,-.65); group.add(feet1);
+  const feet2 = feet1.clone(); feet2.position.set(1.05,.14,-.65); group.add(feet2);
+  const feet3 = feet1.clone(); feet3.position.set(-1.05,.14,.65); group.add(feet3);
+  const feet4 = feet1.clone(); feet4.position.set(1.05,.14,.65); group.add(feet4);
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.08,1.42,1.24), mat(0x3b82f6,.36,.34));
+  body.position.y=1.04; body.castShadow=true; group.add(body);
+
+  const accent = new THREE.Mesh(new THREE.BoxGeometry(2.12,.16,.12), mat(0xf8fafc,.32,.58));
+  accent.position.set(0,1.55,.69); group.add(accent);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.12,.44,.82), mat(0xc6d3e1,.28,.45));
+  head.position.y=1.98; group.add(head);
+
+  const screen = new THREE.Mesh(new THREE.BoxGeometry(.38,.34,.04), mat(0x0f172a,.42,.45));
+  screen.position.set(.88,1.07,.66); group.add(screen);
+
+  const sideBox = new THREE.Mesh(new THREE.BoxGeometry(.52,.78,.52), mat(0x1f2937,.56,.22));
+  sideBox.position.set(.98,.92,.5); group.add(sideBox);
+
+  const roller = new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1.28,16), mat(0x9ca3af,.35,.55));
+  roller.rotation.z = Math.PI/2; roller.position.set(0,.66,-.72); group.add(roller);
+
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(.16,16,16), new THREE.MeshStandardMaterial({
+    color: statusColors[m.status],
+    emissive: statusColors[m.status],
+    emissiveIntensity: 2
+  }));
+  lamp.position.set(0,2.5,0); group.add(lamp);
+
+  group.userData = {machine:m, lamp, index:i};
+  group.traverse(o => { if(o.isMesh) o.userData.parentMachine = group; });
+  scene.add(group);
+  machineMeshes.push(group);
+}
+machinesData.forEach(createMachine);
+
+function updateMachineVisuals() {
+  machineMeshes.forEach((group, i) => {
+    const m = machinesData[i];
+    group.userData.machine = m;
+    const lamp = group.userData.lamp;
+    lamp.material.color.setHex(statusColors[m.status]);
+    lamp.material.emissive.setHex(statusColors[m.status]);
+  });
+}
+
+function conveyor(x,z,len,rot=0){
+  const group = new THREE.Group();
+  const belt = new THREE.Mesh(new THREE.BoxGeometry(len,.16,1.2), mat(0x3a4450,.48,.24));
+  belt.position.y=.55; group.add(belt);
+
+  const rail1 = new THREE.Mesh(new THREE.BoxGeometry(len,.08,.08), mat(0x94a3b8,.38,.45));
+  rail1.position.set(0,.82,-.55); group.add(rail1);
+  const rail2 = rail1.clone(); rail2.position.z = .55; group.add(rail2);
+
+  for(let i=0;i<Math.floor(len/1.2);i++){
+    const roller = new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,1.1,16), mat(0xb4becb,.35,.48));
+    roller.rotation.z = Math.PI/2;
+    roller.position.set(-len/2 + 0.6 + i*1.2, .62, 0);
+    group.add(roller);
+  }
+  group.position.set(x,0,z);
+  group.rotation.y = rot;
+  scene.add(group);
+}
+
+const forklift = new THREE.Group();
+const fkBody = new THREE.Mesh(new THREE.BoxGeometry(1.4,.8,2.1), mat(0xf59e0b)); fkBody.position.y=.55; forklift.add(fkBody);
+const fkCab = new THREE.Mesh(new THREE.BoxGeometry(1.1,.7,1.1), mat(0x222b35)); fkCab.position.set(0,.95,.25); forklift.add(fkCab);
+const mast = new THREE.Mesh(new THREE.BoxGeometry(.12,1.8,.12), mat(0x202731)); mast.position.set(0,1.3,-1.0); forklift.add(mast);
+forklift.position.set(-14.8,0,-7.2);
+scene.add(forklift);
+
+// Segunda empilhadeira no estoque de acabados
+const forklift2 = forklift.clone();
+forklift2.position.set(14.0,0,5.8);
+forklift2.rotation.y = Math.PI/2;
+scene.add(forklift2);
+
+const truck = new THREE.Group();
+const cab = new THREE.Mesh(new THREE.BoxGeometry(2.2,2.2,2.8), mat(0xe5e7eb)); cab.position.set(0,1.1,0); truck.add(cab);
+const trailer = new THREE.Mesh(new THREE.BoxGeometry(2.8,2.8,6.5), mat(0xb8c2cf)); trailer.position.set(0,1.4,4.2); truck.add(trailer);
+truck.position.set(4.5,0,17.2);
+truck.rotation.y = 0;
+scene.add(truck);
+
+addMesh(new THREE.BoxGeometry(7,.08,4), mat(0x4a5563), 16.5,0.04,13.8,0,0,0,false,true);
+
+// Accident visual markers
+const accidentGroup = new THREE.Group();
+scene.add(accidentGroup);
+
+function createBeaconRing(color=0xef4444) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(1.2, 1.8, 40),
+    new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent:true, opacity:.9 })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  return ring;
+}
+function createCone(color=0xef4444, x=0, z=0) {
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(.22,.45,18),
+    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity:.25 })
+  );
+  cone.position.set(x,.24,z);
+  return cone;
+}
+function createAccidentMarker(title, x, z, color=0xef4444) {
+  const group = new THREE.Group();
+  const ring = createBeaconRing(color);
+  group.add(ring);
+
+  group.add(createCone(color, 1.2, 1.2));
+  group.add(createCone(color, -1.2, 1.2));
+  group.add(createCone(color, -1.2, -1.2));
+  group.add(createCone(color, 1.2, -1.2));
+
+  const label = makeTextSprite(title, { scaleX: 4.8, scaleY: 1.1, bg:'rgba(60,10,10,.86)', color:'#fee2e2', font:'bold 28px Arial' });
+  label.position.set(0,2.3,0);
+  group.add(label);
+
+  group.position.set(x,0.03,z);
+  group.userData = { ring, label };
+  accidentGroup.add(group);
+  return group;
+}
+
+let activeIncident = null;
+let activeMarkers = [];
+
+const incidentScenarios = {
+  forklift: {
+    name: 'Colisão com empilhadeira',
+    risk: 'Risco alto • isolamento imediato',
+    production: 1110, efficiency: 73, idle: 58,
+    running: '6 / 9',
+    details: 'Empilhadeira colidiu com a área de circulação próxima à Qualidade / Manutenção. Fluxo interno interrompido para inspeção e isolamento.',
+    alerts: [
+      { type:'danger', html:'🚧 <b>Acidente com empilhadeira</b><br>Área isolada na Qualidade / Manutenção' },
+      { type:'danger', html:'⛔ <b>Trânsito interno bloqueado</b><br>Rota logística temporariamente interrompida' },
+      { type:'warn', html:'⚠️ <b>Replanejamento</b><br>Abastecimento redirecionado para corredor alternativo' }
+    ],
+    apply() {
+      forklift.position.set(-3.5, 0, 8.8);
+      activeMarkers.push(createAccidentMarker('COLISÃO', -3.5, 8.8, 0xf97316));
+      machinesData[6].status = 'warning';
+      machinesData[7].status = 'warning';
+      machinesData[6].rate = 31;
+      machinesData[7].rate = 27;
+    }
+  },
+  fire: {
+    name: 'Incêndio / superaquecimento na CNC 03',
+    risk: 'Crítico • brigada acionada',
+    production: 960, efficiency: 61, idle: 84,
+    running: '5 / 9',
+    details: 'Superaquecimento evoluiu para princípio de incêndio na CNC 03. Linha de usinagem parcialmente paralisada e protocolo de emergência acionado.',
+    alerts: [
+      { type:'danger', html:'🔥 <b>CNC 03</b><br>Princípio de incêndio em usinagem' },
+      { type:'danger', html:'🚨 <b>Brigada acionada</b><br>Evacuação parcial do setor de usinagem' },
+      { type:'warn', html:'⚠️ <b>Impacto operacional</b><br>CNC 01 e CNC 02 em modo de segurança' }
+    ],
+    apply() {
+      activeMarkers.push(createAccidentMarker('INCÊNDIO', -1.1, -6.5, 0xef4444));
+      machinesData[2].status = 'stopped';
+      machinesData[0].status = 'warning';
+      machinesData[1].status = 'warning';
+      machinesData[2].idle = 24;
+      machinesData[0].rate = 22;
+      machinesData[1].rate = 18;
+    }
+  },
+  spill: {
+    name: 'Derramamento na expedição',
+    risk: 'Médio • limpeza emergencial',
+    production: 1078, efficiency: 75, idle: 52,
+    running: '6 / 9',
+    details: 'Derramamento de produto na área de expedição. Piso escorregadio, doca isolada e carregamento temporariamente suspenso.',
+    alerts: [
+      { type:'danger', html:'🧪 <b>Derramamento</b><br>Piso escorregadio na expedição / doca' },
+      { type:'danger', html:'🚛 <b>Carregamento suspenso</b><br>Doca 01 bloqueada para contenção' },
+      { type:'warn', html:'⚠️ <b>Produto acabado acumulado</b><br>Fila acima do previsto' }
+    ],
+    apply() {
+      activeMarkers.push(createAccidentMarker('DERRAMAMENTO', 16.5, 9.5, 0x38bdf8));
+      truck.position.z = 16.2;
+      machinesData[8].status = 'warning';
+      machinesData[8].rate = 22;
+    }
+  },
+  fall: {
+    name: 'Queda de material no estoque',
+    risk: 'Médio • área isolada',
+    production: 1035, efficiency: 71, idle: 63,
+    running: '6 / 9',
+    details: 'Queda de material no estoque de matéria-prima durante movimentação. Rack comprometido e corredor de abastecimento temporariamente interditado.',
+    alerts: [
+      { type:'danger', html:'📦 <b>Queda de material</b><br>Estoque de matéria-prima isolado' },
+      { type:'danger', html:'⛔ <b>Rack avariado</b><br>Bloqueio do abastecimento no recebimento' },
+      { type:'warn', html:'⚠️ <b>Atraso de insumos</b><br>Risco de desabastecimento da usinagem' }
+    ],
+    apply() {
+      activeMarkers.push(createAccidentMarker('QUEDA DE MATERIAL', -15, -5.8, 0xf59e0b));
+      forklift.position.set(-14.2,0,-8.2);
+      machinesData[0].status = 'warning';
+      machinesData[1].status = 'warning';
+      machinesData[3].status = 'warning';
+      machinesData[0].rate = 28;
+      machinesData[1].rate = 25;
+      machinesData[3].rate = 23;
+    }
+  }
+};
+
+function restoreMachineStates() {
+  originalMachineStates.forEach((orig, i) => {
+    Object.assign(machinesData[i], JSON.parse(JSON.stringify(orig)));
+    delete machinesData[i].iotProblem;
+  });
+  updateMachineVisuals();
+}
+
+function clearAccidentMarkers() {
+  activeMarkers.forEach(marker => accidentGroup.remove(marker));
+  activeMarkers = [];
+}
+
+function resetAssetsPositions() {
+  forklift.position.set(-16,0,8);
+  truck.position.set(16.8,0,14.7);
+}
+
+const baseMetrics = {
+  prod: 1248,
+  eff: 86,
+  idle: 37,
+  running: '7 / 9'
+};
+
+function applyMetrics(prod, eff, idle, running) {
+  document.getElementById('prod').textContent = `${prod.toLocaleString('pt-BR')} un.`;
+  document.getElementById('eff').textContent = `${eff}%`;
+  document.getElementById('idle').textContent = `${idle} min`;
+  document.getElementById('running').textContent = running;
+}
+
+function renderAlerts(customAlerts=null) {
+  const alertBox = document.getElementById('alerts');
+  const alerts = customAlerts || [
+    { type:'danger', html:'🔴 <b>CNC 03</b><br>Parada há 12 min • superaquecimento' },
+    { type:'danger', html:'🔴 <b>Doca 01</b><br>Fila de carregamento acima do previsto' },
+    { type:'warn', html:'🟡 <b>Prensa 02</b><br>Vibração acima do limite previsto' }
+  ];
+  alertBox.innerHTML = alerts.map(a => `<div class="alert-card ${a.type==='warn' ? 'warn' : ''}">${a.html}</div>`).join('');
+}
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+renderer.domElement.addEventListener('pointerdown', (e)=>{
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX-rect.left)/rect.width)*2-1;
+  pointer.y = -((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  const allObjects = [...machineMeshes, ...zoneMeshes];
+  const hits = raycaster.intersectObjects(allObjects,true);
+
+  if(hits.length){
+    const obj = hits[0].object;
+    const machineGroup = obj.userData.parentMachine || obj.parent;
+    if(machineGroup?.userData?.machine){
+      selectMachine(machineGroup.userData.index);
+      return;
+    }
+    if(obj.userData?.type === 'zone'){
+      selectZone(obj.userData.index);
+      return;
+    }
+  }
+});
+
+window.selectMachine = function(i) {
+  openSidebar();
+  const m = machinesData[i];
+  document.getElementById('panelTitle').textContent = m.name;
+  document.getElementById('panelHint').innerHTML =
+    `<b>Setor:</b> ${m.sector}<br>
+     <b>Status:</b> ${statusText(m.status)}<br>
+     <b>Eficiência:</b> ${m.efficiency}%<br>
+     <b>Produção:</b> ${m.rate} peças/h<br>
+     <b>Tempo ocioso:</b> ${m.idle} min<br><br>
+     ${m.iotProblem ? `<b>Problema IoT:</b> ${m.iotProblem}<br>` : ''}
+     ${m.status==='stopped' ? '⚠️ Equipamento fora de operação.' :
+       m.status==='warning' ? '⚠️ Equipamento operando com restrições.' :
+       '✓ Equipamento dentro dos parâmetros.'}`;
+};
+
+window.selectZone = function(i) {
+  openSidebar();
+  const z = zones[i];
+  document.getElementById('panelTitle').textContent = z.name;
+  document.getElementById('panelHint').innerHTML =
+    `<b>Dimensões:</b> ${z.w} m × ${z.d} m<br>
+     <b>Área:</b> ${z.area} m²<br>
+     <b>Função:</b> ${z.desc}<br><br>
+     <b>Observação:</b> setor posicionado para manter fluxo linear entre recebimento → processo → estoque final → expedição.`;
+};
+
+let emergencySoundEnabled = true;
+let emergencyAudioContext = null;
+let emergencyOscillator = null;
+let emergencyGain = null;
+let emergencySirenInterval = null;
+let emergencyAlarmRunning = false;
+
+function getEmergencyAudioContext() {
+  if (!emergencyAudioContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) emergencyAudioContext = new AudioCtx();
+  }
+  return emergencyAudioContext;
+}
+
+function startContinuousEmergencyAlarm() {
+  if (!emergencySoundEnabled || emergencyAlarmRunning) return;
+
+  const ctx = getEmergencyAudioContext();
+  if (!ctx) return;
+
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
+
+  emergencyAlarmRunning = true;
+
+  emergencyOscillator = ctx.createOscillator();
+  emergencyGain = ctx.createGain();
+
+  emergencyOscillator.type = 'square';
+  emergencyOscillator.frequency.value = 820;
+
+  emergencyGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  emergencyGain.gain.exponentialRampToValueAtTime(0.045, ctx.currentTime + 0.05);
+
+  emergencyOscillator.connect(emergencyGain);
+  emergencyGain.connect(ctx.destination);
+  emergencyOscillator.start();
+
+  let high = true;
+  emergencySirenInterval = setInterval(() => {
+    if (!emergencyOscillator || !emergencyAlarmRunning) return;
+    high = !high;
+    const target = high ? 920 : 620;
+    emergencyOscillator.frequency.setTargetAtTime(target, ctx.currentTime, 0.05);
+  }, 420);
+
+  const btn = document.getElementById('soundToggleBtn');
+  if (btn) {
+    btn.textContent = '🚨 DESLIGAR ALARME';
+    btn.classList.add('active');
+  }
+}
+
+function stopEmergencyAlarm() {
+  if (emergencySirenInterval) {
+    clearInterval(emergencySirenInterval);
+    emergencySirenInterval = null;
+  }
+
+  if (emergencyGain && emergencyAudioContext) {
+    try {
+      emergencyGain.gain.cancelScheduledValues(emergencyAudioContext.currentTime);
+      emergencyGain.gain.setTargetAtTime(0.0001, emergencyAudioContext.currentTime, 0.04);
+    } catch (e) {}
+  }
+
+  if (emergencyOscillator) {
+    try {
+      emergencyOscillator.stop(emergencyAudioContext.currentTime + 0.15);
+    } catch (e) {}
+  }
+
+  emergencyOscillator = null;
+  emergencyGain = null;
+  emergencyAlarmRunning = false;
+
+  const btn = document.getElementById('soundToggleBtn');
+  if (btn) {
+    btn.textContent = emergencySoundEnabled ? '🔊 Alarme armado' : '🔇 Alarme OFF';
+    if (emergencySoundEnabled) btn.classList.add('active');
+    else btn.classList.remove('active');
+  }
+}
+
+window.toggleEmergencySound = function() {
+  const btn = document.getElementById('soundToggleBtn');
+
+  if (emergencyAlarmRunning) {
+    // Gestor confirma/silencia o alarme ativo
+    stopEmergencyAlarm();
+    notify('Alarme de emergência desligado pelo gestor');
+    return;
+  }
+
+  emergencySoundEnabled = !emergencySoundEnabled;
+
+  if (emergencySoundEnabled) {
+    btn.textContent = '🔊 Alarme armado';
+    btn.classList.add('active');
+    notify('Alarme de emergência ativado');
+  } else {
+    btn.textContent = '🔇 Alarme OFF';
+    btn.classList.remove('active');
+    notify('Alarme de emergência desativado');
+  }
+};
+
+// Libera o contexto de áudio após interação do usuário.
+window.addEventListener('pointerdown', () => {
+  const ctx = getEmergencyAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
+}, { once: false });
+
+window.openSidebar = function(section='summary') {
+  const panel = document.getElementById('sidePanel');
+  panel.classList.add('open');
+  document.body.classList.remove('panel-closed');
+
+  if (section === 'summary') {
+    showFactorySummary();
+    panel.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (section === 'sectors') {
+    setTimeout(() => {
+      document.getElementById('sectorsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  } else if (section === 'accidents') {
+    setTimeout(() => {
+      document.getElementById('accidentsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }
+};
+
+window.closeSidebar = function() {
+  const panel = document.getElementById('sidePanel');
+  panel.classList.remove('open');
+  document.body.classList.add('panel-closed');
+};
+
+window.showFactorySummary = function() {
+  document.getElementById('panelTitle').textContent = 'Resumo dimensional';
+  document.getElementById('panelHint').innerHTML =
+    `<b>Área total do galpão:</b> 1.000 m²<br>
+     <b>Dimensão geral:</b> 40 m × 25 m<br><br>
+     <b>Fluxo:</b> Recebimento → Usinagem → Montagem → Produto Acabado → Expedição<br><br>
+     <b>Simulação de acidentes:</b> use os botões no topo da sidebar para disparar cenários de risco.`;
+};
+
+function statusText(s){
+  return s==='running' ? '🟢 Operando' : s==='warning' ? '🟡 Atenção' : '🔴 Parada';
+}
+
+function renderLists(){
+  const zlist = document.getElementById('zoneList');
+  zlist.innerHTML = zones.map((z,i)=>`
+    <div class="zone-card" onclick="selectZone(${i})">
+      <div><b>${z.name}</b></div>
+      <div class="machine-row"><span>${z.w} × ${z.d} m</span><span>${z.area} m²</span></div>
+    </div>`).join('');
+
+  const list = document.getElementById('machineList');
+  list.innerHTML = machinesData.map((m,i)=>`
+    <div class="machine-card" onclick="selectMachine(${i})">
+      <div><span class="dot ${m.status==='running'?'green':m.status==='warning'?'yellow':'red'}"></span><b>${m.name}</b></div>
+      <div class="machine-row"><span>${m.efficiency}% eficiência</span><span>${m.rate} pç/h</span></div>
+    </div>`).join('');
+}
+renderLists();
+renderAlerts();
+
+let simRunning = true;
+let dimsVisible = true;
+let t = 0;
+
+window.toggleSimulation = function(){
+  simRunning = !simRunning;
+  document.getElementById('simState').textContent = simRunning ? 'Simulação ativa' : 'Simulação pausada';
+  notify(simRunning ? 'Simulação retomada' : 'Simulação pausada');
+};
+
+window.toggleDimensions = function(){
+  dimsVisible = !dimsVisible;
+  dimensionGroup.visible = dimsVisible;
+  notify(dimsVisible ? 'Medidas visíveis' : 'Medidas ocultas');
+};
+
+const panXInput = document.getElementById('panX');
+const panXValue = document.getElementById('panXValue');
+let currentViewPreset = 'iso';
+
+function setActiveViewButton(view) {
+  ['Iso','Top','Side','Front'].forEach(key => {
+    const btn = document.getElementById(`view${key}Btn`);
+    if (btn) btn.classList.remove('active');
+  });
+  const map = { iso:'viewIsoBtn', top:'viewTopBtn', side:'viewSideBtn', front:'viewFrontBtn' };
+  const activeBtn = document.getElementById(map[view]);
+  if (activeBtn) activeBtn.classList.add('active');
+}
+
+function applyViewPreset(view) {
+  const pan = parseFloat(panXInput.value || 0);
+  currentViewPreset = view;
+  setActiveViewButton(view);
+
+  if (view === 'top') {
+    camera.position.set(pan, 68, 0.01);
+    controls.target.set(pan, 0, 0);
+  } else if (view === 'side') {
+    camera.position.set(pan + 42, 14, 0.01);
+    controls.target.set(pan, 3, 0);
+  } else if (view === 'front') {
+    camera.position.set(pan, 16, 54);
+    controls.target.set(pan, 2, 0);
+  } else {
+    camera.position.set(pan + 34, 34, 38);
+    controls.target.set(pan, 0, 0);
+  }
+  controls.update();
+}
+
+window.setViewPreset = function(view) {
+  applyViewPreset(view);
+  const labels = { iso:'Vista isométrica', top:'Vista superior', side:'Vista lateral', front:'Vista frontal' };
+  notify(labels[view] || 'Vista atualizada');
+};
+
+function updateHorizontalPan(value) {
+  const v = parseFloat(value);
+  const delta = v - controls.target.x;
+  controls.target.x = v;
+  camera.position.x += delta;
+  controls.update();
+
+  if (Math.abs(v) < 0.2) panXValue.textContent = 'Centro';
+  else if (v < 0) panXValue.textContent = `${Math.abs(v).toFixed(1)} m ←`;
+  else panXValue.textContent = `→ ${v.toFixed(1)} m`;
+}
+panXInput.addEventListener('input', (e) => updateHorizontalPan(e.target.value));
+
+window.centerHorizontal = function(){
+  panXInput.value = 0;
+  updateHorizontalPan(0);
+  notify('Área horizontal centralizada');
+};
+
+window.resetCamera = function(){
+  panXInput.value = 0;
+  updateHorizontalPan(0);
+  applyViewPreset('iso');
+  notify('Câmera resetada');
+};
+
+window.simulateAccident = function(type){
+  openSidebar('accidents');
+  resetAccidents(false);
+  activeIncident = type;
+  const scenario = incidentScenarios[type];
+  if (type === 'fire') startContinuousEmergencyAlarm();
+  if (!scenario) return;
+
+  scenario.apply();
+  updateMachineVisuals();
+  applyMetrics(scenario.production, scenario.efficiency, scenario.idle, scenario.running);
+  document.getElementById('incidentStatus').textContent = scenario.name;
+  document.getElementById('incidentRisk').textContent = scenario.risk;
+  document.getElementById('panelTitle').textContent = scenario.name;
+  document.getElementById('panelHint').innerHTML = scenario.details;
+  renderLists();
+  renderAlerts(scenario.alerts);
+
+  if (type === 'fire') {
+    panXInput.value = -1.1;
+    updateHorizontalPan(-1.1);
+  } else if (type === 'spill') {
+    panXInput.value = 16;
+    updateHorizontalPan(16);
+  } else if (type === 'fall') {
+    panXInput.value = -14;
+    updateHorizontalPan(-14);
+  } else if (type === 'forklift') {
+    panXInput.value = -3.5;
+    updateHorizontalPan(-3.5);
+  }
+
+  notify(`Cenário ativado: ${scenario.name}`);
+};
+
+window.resetAccidents = function(showToast=true){
+  activeIncident = null;
+  clearAccidentMarkers();
+  restoreMachineStates();
+  resetAssetsPositions();
+  applyMetrics(baseMetrics.prod, baseMetrics.eff, baseMetrics.idle, baseMetrics.running);
+  document.getElementById('incidentStatus').textContent = 'Nenhum';
+  document.getElementById('incidentRisk').textContent = 'Risco controlado';
+  renderLists();
+  renderAlerts();
+  document.getElementById('panelTitle').textContent = 'Layout da fábrica';
+  document.getElementById('panelHint').innerHTML = 'Use os botões de cenário para simular acidentes, visualizar a área afetada e observar o impacto nos indicadores operacionais.';
+  iotSyncBadge.textContent = '📡 Crachá IoT conectado';
+  iotSyncBadge.classList.add('live');
+  if (showToast) notify('Cenários de acidente resetados');
+};
+
+window.notify = function(txt){
+  const el=document.getElementById('toast');
+  el.textContent=txt; el.classList.add('show');
+  clearTimeout(window.toastTimer);
+  window.toastTimer=setTimeout(()=>el.classList.remove('show'),1800);
+};
+
+function updateBaseMetrics(){
+  const operating = machinesData.filter(m=>m.status==='running').length;
+  const avg = Math.round(machinesData.reduce((a,m)=>a+m.efficiency,0)/machinesData.length);
+  if (!activeIncident) {
+    document.getElementById('running').textContent = `${operating} / ${machinesData.length}`;
+    document.getElementById('eff').textContent = `${avg}%`;
+  }
+}
+
+// ======================================================
+// INTEGRAÇÃO COM O CRACHÁ IoT
+// ======================================================
+const iotSyncBadge = document.getElementById('iotSyncBadge');
+
+function normalizeSectorName(name) {
+  if (!name) return '';
+  const n = name.toLowerCase();
+  if (n.includes('corte')) return 'Corte';
+  if (n.includes('produção') || n.includes('producao') || n.includes('usinagem')) return 'Produção';
+  if (n.includes('recebimento') || n.includes('matéria-prima') || n.includes('materia-prima')) return 'Estoque Matérias-Primas';
+  if (n.includes('montagem')) return 'Montagem';
+  if (n.includes('administrativo')) return 'Administrativo';
+  if (n.includes('manutenção') || n.includes('manutencao') || n.includes('qualidade')) return 'Manutenção';
+  if (n.includes('produto acabado')) return 'Estoque Produtos Acabados';
+  if (n.includes('expedição') || n.includes('expedicao') || n.includes('doca')) return 'Expedição / Doca';
+  return name;
+}
+
+function findZoneByName(name) {
+  const normalized = normalizeSectorName(name);
+  return zones.findIndex(z => z.name === normalized);
+}
+
+function machinesInSector(sectorName) {
+  const normalized = normalizeSectorName(sectorName);
+  return machinesData
+    .map((m, i) => ({m, i}))
+    .filter(x => normalizeSectorName(x.m.sector) === normalized);
+}
+
+function focusSector(zone) {
+  if (!zone) return;
+  const targetX = Math.max(-18, Math.min(18, zone.x));
+  panXInput.value = targetX;
+  updateHorizontalPan(targetX);
+}
+
+function problemConfig(problem, emergency) {
+  const p = (problem || '').toLowerCase();
+
+  if (p.includes('superaquecimento')) {
+    return {
+      label: 'SUPERAQUECIMENTO',
+      color: emergency ? 0xef4444 : 0xf97316,
+      icon: '🌡️',
+      action: emergency ? 'Máquina/setor colocado em parada de segurança.' : 'Setor colocado em atenção e inspeção térmica solicitada.'
+    };
+  }
+  if (p.includes('incêndio') || p.includes('incendio')) {
+    return {
+      label: 'PRINCÍPIO DE INCÊNDIO',
+      color: 0xef4444,
+      icon: '🔥',
+      action: 'Brigada e protocolo de emergência acionados.'
+    };
+  }
+  if (p.includes('vazamento') || p.includes('derramamento')) {
+    return {
+      label: 'VAZAMENTO / DERRAMAMENTO',
+      color: 0x38bdf8,
+      icon: '🧪',
+      action: 'Área isolada para contenção e limpeza.'
+    };
+  }
+  if (p.includes('queda de material')) {
+    return {
+      label: 'QUEDA DE MATERIAL',
+      color: 0xf59e0b,
+      icon: '📦',
+      action: 'Corredor isolado e inspeção do armazenamento solicitada.'
+    };
+  }
+  if (p.includes('elétrico') || p.includes('eletrico')) {
+    return {
+      label: 'RISCO ELÉTRICO',
+      color: 0xfacc15,
+      icon: '⚡',
+      action: 'Área isolada e manutenção elétrica acionada.'
+    };
+  }
+  if (p.includes('obstrução') || p.includes('obstrucao')) {
+    return {
+      label: 'OBSTRUÇÃO DE CORREDOR',
+      color: 0xf59e0b,
+      icon: '🚧',
+      action: 'Fluxo interno interrompido até liberação do corredor.'
+    };
+  }
+  if (p.includes('vibração') || p.includes('vibracao')) {
+    return {
+      label: 'VIBRAÇÃO ANORMAL',
+      color: 0xf59e0b,
+      icon: '⚠️',
+      action: 'Equipamento colocado em atenção para inspeção.'
+    };
+  }
+  if (p.includes('falha mecânica') || p.includes('falha mecanica')) {
+    return {
+      label: 'FALHA MECÂNICA',
+      color: emergency ? 0xef4444 : 0xf59e0b,
+      icon: '🔧',
+      action: emergency ? 'Equipamento parado para manutenção.' : 'Manutenção preventiva acionada.'
+    };
+  }
+
+  return {
+    label: problem ? problem.toUpperCase() : 'OCORRÊNCIA',
+    color: emergency ? 0xef4444 : 0xf59e0b,
+    icon: emergency ? '🚨' : '⚠️',
+    action: emergency ? 'Resposta imediata acionada.' : 'Inspeção preventiva solicitada.'
+  };
+}
+
+function findNearestMachineInZone(zone) {
+  let best = null;
+  let bestDist = Infinity;
+  machinesData.forEach((m, i) => {
+    const dx = m.x - zone.x;
+    const dz = m.z - zone.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = {m, i, dist};
+    }
+  });
+  return best;
+}
+
+function applyIoTAlert(alerta) {
+  if (!alerta || alerta.origem !== 'CRACHA_IOT') return;
+  openSidebar();
+
+  const zoneIndex = findZoneByName(alerta.setor || alerta.localizacao);
+  if (zoneIndex < 0) {
+    notify(`Alerta IoT recebido, mas setor não reconhecido: ${alerta.setor || alerta.localizacao}`);
+    return;
+  }
+
+  clearAccidentMarkers();
+  restoreMachineStates();
+
+  activeIncident = 'iot';
+  const zone = zones[zoneIndex];
+  const emergency = alerta.nivel === 'emergencia';
+  if (emergency) startContinuousEmergencyAlarm();
+
+  const problem = alerta.problema || 'Ocorrência não especificada';
+  const cfg = problemConfig(problem, emergency);
+
+  activeMarkers.push(
+    createAccidentMarker(
+      `${cfg.icon} ${cfg.label}`,
+      zone.x,
+      zone.z,
+      cfg.color
+    )
+  );
+
+  const affectedMachines = machinesInSector(zone.name);
+
+  // Se houver máquinas cadastradas no setor, o problema é aplicado a elas.
+  affectedMachines.forEach(({m}) => {
+    m.status = emergency ? 'stopped' : 'warning';
+    m.rate = emergency ? 0 : Math.max(10, Math.round(m.rate * 0.65));
+    m.idle = emergency ? Math.max(m.idle, 15) : Math.max(m.idle, 8);
+    m.iotProblem = problem;
+  });
+
+  // Se o setor não possuir uma máquina explicitamente cadastrada,
+  // relacionamos o alerta ao equipamento/fluxo mais próximo.
+  if (!affectedMachines.length) {
+    const nearest = findNearestMachineInZone(zone);
+    if (nearest && nearest.dist < 12) {
+      nearest.m.status = emergency ? 'stopped' : 'warning';
+      nearest.m.rate = emergency ? 0 : Math.max(10, Math.round(nearest.m.rate * 0.65));
+      nearest.m.idle = emergency ? Math.max(nearest.m.idle, 15) : Math.max(nearest.m.idle, 8);
+      nearest.m.iotProblem = problem;
+    }
+  }
+
+  if (!affectedMachines.length) {
+    if (zone.name === 'Recebimento / Matéria-prima') {
+      [0,1,2,3,4].forEach(i => {
+        machinesData[i].status = 'warning';
+        machinesData[i].rate = Math.round(machinesData[i].rate * (emergency ? .45 : .75));
+      });
+    }
+    if (zone.name === 'Estoque Produto Acabado' || zone.name === 'Expedição / Doca') {
+      machinesData[9].status = emergency ? 'stopped' : 'warning';
+      machinesData[9].rate = emergency ? 0 : Math.round(machinesData[9].rate * .6);
+    }
+    if (zone.name === 'Qualidade / Manutenção') {
+      [7,8,9].forEach(i => {
+        machinesData[i].status = 'warning';
+        machinesData[i].rate = Math.round(machinesData[i].rate * (emergency ? .55 : .8));
+      });
+    }
+  }
+
+  updateMachineVisuals();
+  renderLists();
+
+  const impactProd = emergency ? 920 : 1110;
+  const impactEff = emergency ? 58 : 74;
+  const impactIdle = emergency ? 96 : 54;
+  const runningCount = machinesData.filter(m => m.status === 'running').length;
+  applyMetrics(impactProd, impactEff, impactIdle, `${runningCount} / ${machinesData.length}`);
+
+  document.getElementById('incidentStatus').textContent =
+    emergency ? `EMERGÊNCIA • ${zone.name}` : `RISCO • ${zone.name}`;
+  document.getElementById('incidentRisk').textContent =
+    emergency ? 'Crítico • resposta imediata' : 'Preventivo • inspeção necessária';
+
+  document.getElementById('panelTitle').textContent =
+    emergency ? '🚨 Alerta IoT de Emergência' : '⚠️ Alerta IoT Preventivo';
+
+  document.getElementById('panelHint').innerHTML = `
+    <b>Setor:</b> ${zone.name}<br>
+    <b>Problema relatado:</b> ${problem}<br>
+    <b>Operador:</b> ${alerta.operador || 'Não informado'}${alerta.matricula ? ` (Mat. ${alerta.matricula})` : ''}<br>
+    <b>Líder:</b> ${alerta.lider || 'Não informado'}<br>
+    <b>Horário:</b> ${alerta.horario || new Date().toLocaleTimeString('pt-BR')}<br>
+    <b>Nível:</b> ${emergency ? 'EMERGÊNCIA' : 'RISCO PREVENTIVO'}<br><br>
+    <b>Correlação automática:</b> ${cfg.icon} ${cfg.label}<br>
+    <b>Ação do sistema:</b> ${cfg.action}
+  `;
+
+  renderAlerts([
+    {
+      type: emergency ? 'danger' : 'warn',
+      html: `${cfg.icon} <b>${cfg.label}</b><br>${zone.name} • ${alerta.operador || 'Operador'}`
+    },
+    {
+      type: 'warn',
+      html: `📡 <b>Crachá conectado</b><br>Alerta recebido às ${alerta.horario || new Date().toLocaleTimeString('pt-BR')}`
+    },
+    {
+      type: emergency ? 'danger' : 'warn',
+      html: `👷 <b>Líder responsável</b><br>${alerta.lider || 'Não informado'}`
+    }
+  ]);
+
+  focusSector(zone);
+  iotSyncBadge.textContent = `${cfg.icon} ${zone.name}: ${cfg.label}`;
+  iotSyncBadge.classList.remove('live');
+
+  setTimeout(() => {
+    iotSyncBadge.textContent = '📡 Crachá IoT conectado';
+    iotSyncBadge.classList.add('live');
+  }, 5000);
+
+  notify(`${emergency ? 'EMERGÊNCIA' : 'RISCO'} recebido do crachá • ${zone.name}`);
+}
+
+window.showApp = function(mode) {
+  const threePage = document.getElementById('threePage');
+  const iotPage = document.getElementById('iotPage');
+  const tab3D = document.getElementById('tab3D');
+  const tabIoT = document.getElementById('tabIoT');
+
+  if (mode === 'iot') {
+    threePage.classList.add('hidden');
+    iotPage.classList.add('show');
+    tab3D.classList.remove('active');
+    tabIoT.classList.add('active');
+  } else {
+    iotPage.classList.remove('show');
+    threePage.classList.remove('hidden');
+    tabIoT.classList.remove('active');
+    tab3D.classList.add('active');
+    setTimeout(resize, 50);
+  }
+};
+
+window.receiveIoTAlert = function(alerta) {
+  applyIoTAlert(alerta);
+  setTimeout(() => showApp('3d'), 450);
+};
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  const dt = .013;
+  if(simRunning && !activeIncident){
+    t += dt;
+    const phase = (t*1.2) % 3;
+    if (phase < 1) {
+      forklift.position.x = -16 + phase * 8;
+      forklift.position.z = 8;
+    } else if (phase < 2) {
+      forklift.position.x = -8 + (phase-1) * 16;
+      forklift.position.z = 8 - (phase-1) * 14;
+    } else {
+      forklift.position.x = 8 + (phase-2) * 4;
+      forklift.position.z = -6 + (phase-2) * 14;
+    }
+    const prod = baseMetrics.prod + Math.floor((t*2)%80);
+    document.getElementById('prod').textContent = `${prod.toLocaleString('pt-BR')} un.`;
+  }
+
+  // animate accident markers
+  accidentGroup.children.forEach((marker, idx) => {
+    if (marker.userData?.ring) {
+      const pulse = 1 + Math.sin((performance.now()/220) + idx) * 0.18;
+      marker.userData.ring.scale.set(pulse, pulse, pulse);
+    }
+  });
+
+  machineMeshes.forEach(group => {
+    const m = group.userData.machine;
+    const lamp = group.userData.lamp;
+    lamp.material.emissiveIntensity = m.status === 'running' ? 1.7 + Math.sin(t*4)*0.25 :
+                                      m.status === 'warning' ? 2.1 + Math.sin(t*8)*0.45 :
+                                      2.5 + Math.sin(t*10)*0.6;
+  });
+
+  controls.update();
+  renderer.render(scene,camera);
+}
+animate();
+
+function resize(){
+  const r = container.getBoundingClientRect();
+  renderer.setSize(r.width,r.height,false);
+  camera.aspect = r.width/r.height;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+resize();
+
+showFactorySummary();
+updateHorizontalPan(0);
+applyViewPreset('iso');
+updateBaseMetrics();
+updateFactoryStatePanel(true);
+closeSidebar();
+</script>
+
+<script>
+(() => {
+
+    const btn = document.getElementById('btnCracha');
+    const alertBanner = document.getElementById('alertBanner');
+    const logTableBody = document.getElementById('logTableBody');
+
+    // Cadastro do Funcionário que emite o sinal
+    const funcionario = {
+        nome: "João Silva",
+        matricula: "8842",
+        lider: "Carlos Eduardo",
+        setor: "Usinagem"
+    };
+
+    const setorSelect = document.getElementById('setorSelect');
+    const syncStatus = document.getElementById('syncStatus');
+    const problemaSelect = document.getElementById('problemaSelect');
+
+    function problemaAtual() {
+        return problemaSelect.value;
+    }
+
+    
+
+    function setorAtual() {
+        return setorSelect.value;
+    }
+
+    function setorExibicao() {
+        return setorSelect.options[setorSelect.selectedIndex].text;
+    }
+
+    function enviarAlertaPara3D(nivel, nivelTexto) {
+        const alerta = {
+            origem: 'CRACHA_IOT',
+            nivel,
+            nivelTexto,
+            operador: funcionario.nome,
+            matricula: funcionario.matricula,
+            lider: funcionario.lider,
+            setor: setorAtual(),
+            problema: problemaAtual(),
+            localizacao: setorExibicao(),
+            horario: new Date().toLocaleTimeString('pt-BR'),
+            timestamp: Date.now()
+        };
+
+        window.receiveIoTAlert(alerta);
+
+        syncStatus.textContent = `📡 ${nivelTexto} • ${alerta.setor} • ${alerta.problema}`;
+        setTimeout(() => {
+            syncStatus.textContent = '🔗 Integração 3D pronta';
+        }, 3500);
+    }
+
+    let tempoPressionado;
+    let ehCliqueLongo = false;
+
+    function adicionarRegistroTabela(nivelClass, nivelTexto) {
+        const hora = new Date().toLocaleTimeString();
+        const novaLinha = document.createElement('tr');
+        
+        novaLinha.innerHTML = `
+            <td>${hora}</td>
+            <td><span class="${nivelClass}">${nivelTexto}</span></td>
+            <td><strong>${funcionario.nome}</strong><br><small>Líder: ${funcionario.lider}</small></td>
+            <td>${setorExibicao()}</td>
+            <td>${problemaAtual()}</td>
+        `;
+        
+        logTableBody.insertBefore(novaLinha, logTableBody.firstChild);
+    }
+
+    // Detecta clique e aciona recepção na central
+    function iniciarPressionamento() {
+        ehCliqueLongo = false;
+
+        tempoPressionado = setTimeout(() => {
+            ehCliqueLongo = true;
+            
+            // Reação da Empresa: EMERGÊNCIA (Vermelho)
+            alertBanner.style.background = '#dc3545';
+            alertBanner.style.borderLeftColor = '#842029';
+            alertBanner.style.color = '#ffffff';
+            alertBanner.innerHTML = `🚨 <strong>ALERTA DE EMERGÊNCIA RECEBIDO!</strong><br>
+                Operador: <strong>${funcionario.nome}</strong> (Mat: ${funcionario.matricula}) | Local: <strong>${setorExibicao()}</strong><br>
+                Problema: <strong>${problemaAtual()}</strong><br>📩 Notificação enviada para o Líder <strong>${funcionario.lider}</strong> e Brigada de Socorro!`;
+
+            adicionarRegistroTabela('tag-emergencia', 'EMERGÊNCIA');
+            enviarAlertaPara3D('emergencia', 'EMERGÊNCIA');
+        }, 1500);
+    }
+
+    function finalizarPressionamento() {
+        clearTimeout(tempoPressionado);
+
+        if (!ehCliqueLongo) {
+            // Reação da Empresa: RISCO PREVENTIVO (Amarelo)
+            alertBanner.style.background = '#ffc107';
+            alertBanner.style.borderLeftColor = '#b78103';
+            alertBanner.style.color = '#000000';
+            alertBanner.innerHTML = `⚠️ <strong>NOTIFICAÇÃO DE RISCO PREVENTIVO</strong><br>
+                Reportado por: <strong>${funcionario.nome}</strong> | Local: <strong>${setorExibicao()}</strong><br>
+                Problema: <strong>${problemaAtual()}</strong><br>📩 Chamado aberto para o Supervisor <strong>${funcionario.lider}</strong> e equipe do SESMT.`;
+
+            adicionarRegistroTabela('tag-risco', 'RISCO');
+            enviarAlertaPara3D('risco', 'RISCO PREVENTIVO');
+        }
+
+        // Volta a central ao estado normal após 5 segundos
+        setTimeout(() => {
+            alertBanner.style.background = '#2a364f';
+            alertBanner.style.borderLeftColor = '#6c757d';
+            alertBanner.style.color = '#ffffff';
+            alertBanner.innerHTML = `🟢 <strong>Nenhum alerta ativo</strong><br>Todos os setores operando dentro dos padrões de segurança.`;
+        }, 5000);
+    }
+
+    // Eventos
+    btn.addEventListener('mousedown', iniciarPressionamento);
+    btn.addEventListener('mouseup', finalizarPressionamento);
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); iniciarPressionamento(); });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); finalizarPressionamento(); });
+
+})();
+</script>
+
+</body>
+</html>
